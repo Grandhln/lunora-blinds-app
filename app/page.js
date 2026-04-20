@@ -16,9 +16,11 @@ export default function Home() {
   const [colorCode, setColorCode] = useState("");
   const [mechanism, setMechanism] = useState("Manual");
   const [blindType, setBlindType] = useState("");
+  const [notes, setNotes] = useState("");
 
   // Blinds List (Cart) State
   const [blindsList, setBlindsList] = useState([]);
+  const [editingBlindId, setEditingBlindId] = useState(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState(null); // { type: 'success' | 'error', text: '', url: '' }
@@ -105,25 +107,43 @@ export default function Home() {
       return;
     }
 
-    const newBlind = {
-      id: Date.now(),
-      location,
-      width,
-      height,
-      mountType,
-      colorCode,
-      mechanism,
-      blindType
-    };
-
-    setBlindsList([...blindsList, newBlind]);
+    if (editingBlindId) {
+      const updatedBlinds = blindsList.map(b => 
+        b.id === editingBlindId ? {
+          ...b, location, width, height, mountType, colorCode, mechanism, blindType, notes
+        } : b
+      );
+      setBlindsList(updatedBlinds);
+      setEditingBlindId(null);
+    } else {
+      const newBlind = {
+        id: Date.now(),
+        location, width, height, mountType, colorCode, mechanism, blindType, notes
+      };
+      setBlindsList([...blindsList, newBlind]);
+    }
     
     // Clear the blind input fields for the next one
     setLocation("");
     setWidth("");
     setHeight("");
     setColorCode("");
-    // We can keep mountType, mechanism, and blindType as they might be the same
+    setNotes("");
+  };
+
+  const handleEditBlind = (blind) => {
+    setLocation(blind.location);
+    setWidth(blind.width);
+    setHeight(blind.height);
+    setMountType(blind.mountType);
+    setColorCode(blind.colorCode);
+    setMechanism(blind.mechanism);
+    setBlindType(blind.blindType);
+    setNotes(blind.notes || "");
+    setEditingBlindId(blind.id);
+    
+    // Scroll to form smoothly
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleRemoveBlind = (id) => {
@@ -181,6 +201,8 @@ export default function Home() {
     setWidth("");
     setHeight("");
     setColorCode("");
+    setNotes("");
+    setEditingBlindId(null);
     setMessage(null);
   };
 
@@ -297,7 +319,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="form-group">
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
               <label>Color Code / Name</label>
               <input 
                 type="text" 
@@ -308,8 +330,28 @@ export default function Home() {
               />
             </div>
 
+            <div className="form-group" style={{ marginBottom: '1rem' }}>
+              <label>Notes (Optional)</label>
+              <textarea 
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Any special instructions or details..."
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  backgroundColor: 'var(--input-bg)',
+                  border: '1px solid var(--glass-border)',
+                  borderRadius: '6px',
+                  color: 'white',
+                  fontFamily: 'inherit',
+                  minHeight: '80px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+
             <button type="submit" disabled={blindTypes.length === 0}>
-              + Add Blind to Order
+              {editingBlindId ? "Update Blind Details" : "+ Add Blind to Order"}
             </button>
           </form>
         </div>
@@ -329,15 +371,31 @@ export default function Home() {
                   <span style={{fontSize: '0.8rem', opacity: 0.7}}>
                     {b.mountType} Mount | {b.mechanism} | Color: {b.colorCode}
                   </span>
+                  {b.notes && (
+                    <div style={{fontSize: '0.8rem', color: 'var(--primary-gold)', marginTop: '4px', fontStyle: 'italic'}}>
+                      Notes: {b.notes}
+                    </div>
+                  )}
                 </div>
                 {(!message || message.type !== 'success') && (
-                  <button 
-                    className="delete-btn" 
-                    onClick={() => handleRemoveBlind(b.id)}
-                    title="Remove Blind"
-                  >
-                    ✕
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button 
+                      type="button"
+                      onClick={() => handleEditBlind(b)}
+                      title="Edit Blind"
+                      style={{ background: 'transparent', border: 'none', color: 'var(--primary-gold)', cursor: 'pointer', fontSize: '1.2rem', padding: '0.2rem' }}
+                    >
+                      ✎
+                    </button>
+                    <button 
+                      type="button"
+                      className="delete-btn" 
+                      onClick={() => handleRemoveBlind(b.id)}
+                      title="Remove Blind"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 )}
               </div>
             ))}

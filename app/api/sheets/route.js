@@ -43,13 +43,12 @@ async function ensureSheetExistsAndFormatted(sheets, spreadsheetId, tabTitle) {
   
   const newSheetId = addSheetResponse.data.replies[0].addSheet.properties.sheetId;
 
-  // 3. Add headers and banding to the newly created sheet
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${tabTitle}'!A1:H1`,
+    range: `'${tabTitle}'!A1:I1`,
     valueInputOption: 'USER_ENTERED',
     requestBody: {
-      values: [['Customer Name', 'Location', 'Width', 'Height', 'Mount Type', 'Color Code', 'Mechanism', 'Blind Type']]
+      values: [['Customer Name', 'Location', 'Width', 'Height', 'Mount Type', 'Color Code', 'Mechanism', 'Blind Type', 'Notes']]
     }
   });
 
@@ -60,7 +59,7 @@ async function ensureSheetExistsAndFormatted(sheets, spreadsheetId, tabTitle) {
         // Bold header
         {
           repeatCell: {
-            range: { sheetId: newSheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 8 },
+            range: { sheetId: newSheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 9 },
             cell: {
               userEnteredFormat: {
                 textFormat: { bold: true },
@@ -73,7 +72,7 @@ async function ensureSheetExistsAndFormatted(sheets, spreadsheetId, tabTitle) {
         {
           addBanding: {
             bandedRange: {
-              range: { sheetId: newSheetId, startRowIndex: 0, startColumnIndex: 0, endColumnIndex: 8 },
+              range: { sheetId: newSheetId, startRowIndex: 0, startColumnIndex: 0, endColumnIndex: 9 },
               rowProperties: {
                 headerColor: { red: 0.83, green: 0.68, blue: 0.21 }, // #D4AF37 Gold Header
                 firstBandColor: { red: 1, green: 1, blue: 1 }, // White
@@ -118,7 +117,7 @@ export async function GET(req) {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: masterSpreadsheetId,
-      range: `'${customer}'!A2:H`, // Skip header
+      range: `'${customer}'!A2:I`, // Skip header
     });
 
     const rows = response.data.values || [];
@@ -130,7 +129,8 @@ export async function GET(req) {
       mountType: row[4] || 'Inside',
       colorCode: row[5] || '',
       mechanism: row[6] || 'Manual',
-      blindType: row[7] || ''
+      blindType: row[7] || '',
+      notes: row[8] || ''
     }));
 
     return NextResponse.json({ blinds });
@@ -163,19 +163,19 @@ export async function POST(req) {
 
     // Prepare rows from the array of blinds
     const rows = blinds.map(b => [
-      customerName, b.location, b.width, b.height, b.mountType, b.colorCode, b.mechanism, b.blindType
+      customerName, b.location, b.width, b.height, b.mountType, b.colorCode, b.mechanism, b.blindType, b.notes || ''
     ]);
 
     // Clear existing data (to support editing/deletion of rows)
     await sheets.spreadsheets.values.clear({
       spreadsheetId: masterSpreadsheetId,
-      range: `'${customerName}'!A2:H`,
+      range: `'${customerName}'!A2:I`,
     });
 
     // Write new data
     await sheets.spreadsheets.values.update({
       spreadsheetId: masterSpreadsheetId,
-      range: `'${customerName}'!A2:H`,
+      range: `'${customerName}'!A2:I`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: rows
