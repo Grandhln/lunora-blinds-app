@@ -23,6 +23,11 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState(null); // { type: 'success' | 'error', text: '', url: '' }
 
+  // Customer Fetching State
+  const [existingCustomers, setExistingCustomers] = useState([]);
+  const [loadedCustomer, setLoadedCustomer] = useState(null);
+  const [isLoadingCustomer, setIsLoadingCustomer] = useState(false);
+
   // Settings State
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [blindTypes, setBlindTypes] = useState([]);
@@ -39,7 +44,35 @@ export default function Home() {
       setBlindTypes(DEFAULT_BLIND_TYPES);
       setBlindType(DEFAULT_BLIND_TYPES[0]);
     }
+
+    // Load existing customers from the master spreadsheet
+    fetch('/api/sheets')
+      .then(res => res.json())
+      .then(data => {
+        if (data.customers) setExistingCustomers(data.customers);
+      })
+      .catch(console.error);
   }, []);
+
+  // When customerName changes, load their existing data if they match a past customer
+  useEffect(() => {
+    if (existingCustomers.includes(customerName) && loadedCustomer !== customerName) {
+      setIsLoadingCustomer(true);
+      fetch(`/api/sheets?customer=${encodeURIComponent(customerName)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.blinds) setBlindsList(data.blinds);
+          setLoadedCustomer(customerName);
+        })
+        .catch(console.error)
+        .finally(() => setIsLoadingCustomer(false));
+    } else if (!existingCustomers.includes(customerName)) {
+      if (loadedCustomer) {
+        setBlindsList([]); // Clear if they start typing a completely new name
+        setLoadedCustomer(null);
+      }
+    }
+  }, [customerName, existingCustomers, loadedCustomer]);
 
   const saveBlindTypes = (types) => {
     setBlindTypes(types);
@@ -142,6 +175,7 @@ export default function Home() {
   const handleNextCustomer = () => {
     // Completely reset everything
     setCustomerName("");
+    setLoadedCustomer(null);
     setBlindsList([]);
     setLocation("");
     setWidth("");
@@ -182,8 +216,13 @@ export default function Home() {
             value={customerName}
             onChange={e => setCustomerName(e.target.value)}
             placeholder="e.g. John Doe - Master Bedroom" 
-            disabled={message && message.type === 'success'} // disable if finished
+            disabled={(message && message.type === 'success') || isLoadingCustomer}
+            list="customers-list"
           />
+          <datalist id="customers-list">
+            {existingCustomers.map(c => <option key={c} value={c} />)}
+          </datalist>
+          {isLoadingCustomer && <p style={{color: 'var(--primary-gold)', fontSize: '0.85rem', marginTop: '0.5rem'}}>Loading existing customer data...</p>}
         </div>
       </div>
 
@@ -305,8 +344,8 @@ export default function Home() {
           </div>
 
           {(!message || message.type !== 'success') ? (
-            <button onClick={handleSubmitCustomer} disabled={isSubmitting}>
-              {isSubmitting ? 'Creating Sheet...' : 'Finalize Customer & Create Sheet'}
+            <button onClick={handleSubmitCustomer} disabled={isSubmitting || isLoadingCustomer}>
+              {isSubmitting ? 'Syncing...' : (existingCustomers.includes(customerName) ? 'Update Customer Sheet' : 'Finalize Customer & Create Sheet')}
             </button>
           ) : (
             <button onClick={handleNextCustomer} style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)'}}>
