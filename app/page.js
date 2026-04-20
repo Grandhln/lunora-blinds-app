@@ -1,65 +1,362 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+
+const DEFAULT_BLIND_TYPES = ["Roller", "Zebra", "Roman", "Cellular", "Wood"];
 
 export default function Home() {
+  // Customer State
+  const [customerName, setCustomerName] = useState("");
+  
+  // Current Blind State
+  const [location, setLocation] = useState("");
+  const [width, setWidth] = useState("");
+  const [height, setHeight] = useState("");
+  const [mountType, setMountType] = useState("Inside");
+  const [colorCode, setColorCode] = useState("");
+  const [mechanism, setMechanism] = useState("Manual");
+  const [blindType, setBlindType] = useState("");
+
+  // Blinds List (Cart) State
+  const [blindsList, setBlindsList] = useState([]);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState(null); // { type: 'success' | 'error', text: '', url: '' }
+
+  // Settings State
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [blindTypes, setBlindTypes] = useState([]);
+  const [newBlindType, setNewBlindType] = useState("");
+
+  useEffect(() => {
+    // Load blind types from local storage on mount
+    const stored = localStorage.getItem("lunora_blind_types");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      setBlindTypes(parsed);
+      if (parsed.length > 0) setBlindType(parsed[0]);
+    } else {
+      setBlindTypes(DEFAULT_BLIND_TYPES);
+      setBlindType(DEFAULT_BLIND_TYPES[0]);
+    }
+  }, []);
+
+  const saveBlindTypes = (types) => {
+    setBlindTypes(types);
+    localStorage.setItem("lunora_blind_types", JSON.stringify(types));
+    if (!types.includes(blindType) && types.length > 0) {
+      setBlindType(types[0]);
+    } else if (types.length === 0) {
+      setBlindType("");
+    }
+  };
+
+  const handleAddBlindType = (e) => {
+    e.preventDefault();
+    if (!newBlindType.trim()) return;
+    if (blindTypes.includes(newBlindType.trim())) return;
+    
+    saveBlindTypes([...blindTypes, newBlindType.trim()]);
+    setNewBlindType("");
+  };
+
+  const handleDeleteBlindType = (typeToRemove) => {
+    const updated = blindTypes.filter(t => t !== typeToRemove);
+    saveBlindTypes(updated);
+  };
+
+  const handleAddBlind = (e) => {
+    e.preventDefault();
+    if (!location || !width || !height || !colorCode) {
+      alert("Please fill out all blind details first.");
+      return;
+    }
+
+    const newBlind = {
+      id: Date.now(),
+      location,
+      width,
+      height,
+      mountType,
+      colorCode,
+      mechanism,
+      blindType
+    };
+
+    setBlindsList([...blindsList, newBlind]);
+    
+    // Clear the blind input fields for the next one
+    setLocation("");
+    setWidth("");
+    setHeight("");
+    setColorCode("");
+    // We can keep mountType, mechanism, and blindType as they might be the same
+  };
+
+  const handleRemoveBlind = (id) => {
+    setBlindsList(blindsList.filter(b => b.id !== id));
+  };
+
+  const handleSubmitCustomer = async () => {
+    if (!customerName) {
+      alert("Please enter a customer name.");
+      return;
+    }
+    if (blindsList.length === 0) {
+      alert("Please add at least one blind to the list.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setMessage(null);
+
+    try {
+      const response = await fetch('/api/sheets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName,
+          blinds: blindsList
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to submit data');
+      }
+
+      setMessage({ 
+        type: 'success', 
+        text: `Success! Created sheet for ${customerName}.`,
+        url: data.spreadsheetUrl
+      });
+      
+    } catch (error) {
+      setMessage({ type: 'error', text: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleNextCustomer = () => {
+    // Completely reset everything
+    setCustomerName("");
+    setBlindsList([]);
+    setLocation("");
+    setWidth("");
+    setHeight("");
+    setColorCode("");
+    setMessage(null);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <main className="container">
+      <header className="header">
+        <h1>Lunora Blinds</h1>
+        <p>Premium Measurement & Order System</p>
+      </header>
+
+      <button className="settings-btn" onClick={() => setIsSettingsOpen(true)}>
+        ⚙️ Settings
+      </button>
+
+      {message && (
+        <div className={`message ${message.type}`}>
+          <p>{message.text}</p>
+          {message.url && (
+            <a href={message.url} target="_blank" rel="noreferrer" style={{color: 'white', display: 'inline-block', marginTop: '0.5rem'}}>
+              Open Google Sheet
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* CUSTOMER INFO SECTION */}
+      <div className="glass-panel" style={{ marginBottom: '2rem' }}>
+        <h2 style={{ marginBottom: '1rem', color: 'var(--primary-gold)' }}>Customer Information</h2>
+        <div className="form-group">
+          <label>Customer Name / Identifier</label>
+          <input 
+            type="text" 
+            value={customerName}
+            onChange={e => setCustomerName(e.target.value)}
+            placeholder="e.g. John Doe - Master Bedroom" 
+            disabled={message && message.type === 'success'} // disable if finished
+          />
+        </div>
+      </div>
+
+      {/* BLIND ENTRY SECTION */}
+      {(!message || message.type !== 'success') && (
+        <div className="glass-panel" style={{ marginBottom: '2rem' }}>
+          <h2 style={{ marginBottom: '1rem', color: 'var(--primary-gold)' }}>Add a Blind</h2>
+          <form onSubmit={handleAddBlind}>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Location in House</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={location}
+                  onChange={e => setLocation(e.target.value)}
+                  placeholder="e.g. Living Room Window 1" 
+                />
+              </div>
+              <div className="form-group">
+                <label>Blind Type</label>
+                <select 
+                  value={blindType} 
+                  onChange={e => setBlindType(e.target.value)}
+                  required
+                >
+                  {blindTypes.length === 0 && <option value="">No types available</option>}
+                  {blindTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Width (inches)</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={width}
+                  onChange={e => setWidth(e.target.value)}
+                  placeholder="e.g. 34.5" 
+                />
+              </div>
+              <div className="form-group">
+                <label>Height (inches)</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={height}
+                  onChange={e => setHeight(e.target.value)}
+                  placeholder="e.g. 72" 
+                />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Mount Type</label>
+                <select value={mountType} onChange={e => setMountType(e.target.value)}>
+                  <option value="Inside">Inside Mount</option>
+                  <option value="Outside">Outside Mount</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Mechanism</label>
+                <select value={mechanism} onChange={e => setMechanism(e.target.value)}>
+                  <option value="Manual">Manual</option>
+                  <option value="Motorized">Motorized</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Color Code / Name</label>
+              <input 
+                type="text" 
+                required 
+                value={colorCode}
+                onChange={e => setColorCode(e.target.value)}
+                placeholder="e.g. Ivory White #001" 
+              />
+            </div>
+
+            <button type="submit" disabled={blindTypes.length === 0}>
+              + Add Blind to Order
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* SUMMARY LIST SECTION */}
+      {blindsList.length > 0 && (
+        <div className="glass-panel" style={{ marginBottom: '2rem' }}>
+          <h2 style={{ marginBottom: '1rem', color: 'var(--primary-gold)' }}>
+            Blinds List ({blindsList.length})
+          </h2>
+          <div className="item-list" style={{ maxHeight: 'none', marginBottom: '2rem' }}>
+            {blindsList.map(b => (
+              <div className="list-item" key={b.id}>
+                <div>
+                  <strong>{b.location}</strong> - {b.blindType} ({b.width}" x {b.height}")<br/>
+                  <span style={{fontSize: '0.8rem', opacity: 0.7}}>
+                    {b.mountType} Mount | {b.mechanism} | Color: {b.colorCode}
+                  </span>
+                </div>
+                {(!message || message.type !== 'success') && (
+                  <button 
+                    className="delete-btn" 
+                    onClick={() => handleRemoveBlind(b.id)}
+                    title="Remove Blind"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {(!message || message.type !== 'success') ? (
+            <button onClick={handleSubmitCustomer} disabled={isSubmitting}>
+              {isSubmitting ? 'Creating Sheet...' : 'Finalize Customer & Create Sheet'}
+            </button>
+          ) : (
+            <button onClick={handleNextCustomer} style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)'}}>
+              Next Customer
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      <div className={`modal-overlay ${isSettingsOpen ? 'open' : ''}`}>
+        <div className="modal-content glass-panel">
+          <h2>Manage Blind Types</h2>
+          <p style={{ color: 'rgba(255,255,255,0.6)', marginBottom: '1rem', fontSize: '0.9rem' }}>
+            Add or remove blind types from the dropdown menu.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+
+          <form className="add-form" onSubmit={handleAddBlindType}>
+            <input 
+              type="text" 
+              value={newBlindType}
+              onChange={e => setNewBlindType(e.target.value)}
+              placeholder="New blind type..." 
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <button type="submit">Add</button>
+          </form>
+
+          <div className="item-list">
+            {blindTypes.map(type => (
+              <div className="list-item" key={type}>
+                <span>{type}</span>
+                <button 
+                  className="delete-btn" 
+                  onClick={() => handleDeleteBlindType(type)}
+                  title="Remove"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+            {blindTypes.length === 0 && (
+              <p style={{ textAlign: 'center', opacity: 0.5, marginTop: '1rem' }}>No blind types available.</p>
+            )}
+          </div>
+
+          <button className="close-modal" onClick={() => setIsSettingsOpen(false)}>
+            Close Settings
+          </button>
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
