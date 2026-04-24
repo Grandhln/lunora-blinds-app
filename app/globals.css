@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
 
 :root {
   --background: #0a0a0a;
@@ -28,6 +29,50 @@ body {
   background-image: 
     radial-gradient(circle at 15% 50%, rgba(212, 175, 55, 0.05), transparent 25%),
     radial-gradient(circle at 85% 30%, rgba(212, 175, 55, 0.08), transparent 25%);
+}
+
+.global-nav {
+  background: rgba(10, 10, 10, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 1rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+}
+
+.nav-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.nav-brand {
+  font-weight: 700;
+  color: var(--primary-gold);
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.nav-links {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.nav-links a {
+  color: var(--foreground);
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition: color 0.2s ease;
+}
+
+.nav-links a:hover {
+  color: var(--primary-gold);
 }
 
 .container {
@@ -289,4 +334,30 @@ button:disabled {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary-gold);
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+
+@media print {
+  @page {
+    margin: 20mm;
+  }
+  body {
+    background: white;
+    color: black;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-container {
+    display: block !important;
+    font-family: 'Montserrat', sans-serif !important;
+  }
+  .print-only {
+    display: block !important;
+  }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 
 const DEFAULT_BLIND_TYPES = ["Roller", "Zebra", "Roman", "Cellular", "Wood"];
 
@@ -102,10 +103,6 @@ export default function Home() {
 
   const handleAddBlind = (e) => {
     e.preventDefault();
-    if (!location || !width || !height || !colorCode) {
-      alert("Please fill out all blind details first.");
-      return;
-    }
 
     if (editingBlindId) {
       const updatedBlinds = blindsList.map(b => 
@@ -258,7 +255,6 @@ export default function Home() {
                 <label>Location in House</label>
                 <input 
                   type="text" 
-                  required 
                   value={location}
                   onChange={e => setLocation(e.target.value)}
                   placeholder="e.g. Living Room Window 1" 
@@ -269,7 +265,6 @@ export default function Home() {
                 <select 
                   value={blindType} 
                   onChange={e => setBlindType(e.target.value)}
-                  required
                 >
                   {blindTypes.length === 0 && <option value="">No types available</option>}
                   {blindTypes.map(type => (
@@ -284,7 +279,6 @@ export default function Home() {
                 <label>Width (inches)</label>
                 <input 
                   type="text" 
-                  required 
                   value={width}
                   onChange={e => setWidth(e.target.value)}
                   placeholder="e.g. 34.5" 
@@ -294,7 +288,6 @@ export default function Home() {
                 <label>Height (inches)</label>
                 <input 
                   type="text" 
-                  required 
                   value={height}
                   onChange={e => setHeight(e.target.value)}
                   placeholder="e.g. 72" 
@@ -323,7 +316,6 @@ export default function Home() {
               <label>Color Code / Name</label>
               <input 
                 type="text" 
-                required 
                 value={colorCode}
                 onChange={e => setColorCode(e.target.value)}
                 placeholder="e.g. Ivory White #001" 
@@ -406,9 +398,14 @@ export default function Home() {
               {isSubmitting ? 'Syncing...' : (existingCustomers.includes(customerName) ? 'Update Customer Sheet' : 'Finalize Customer & Create Sheet')}
             </button>
           ) : (
-            <button onClick={handleNextCustomer} style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)'}}>
-              Next Customer
-            </button>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button onClick={handleNextCustomer} style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)', flex: 1}}>
+                Next Customer
+              </button>
+              <Link href="/quote" style={{ flex: 1 }}>
+                <button style={{ width: '100%', height: '100%' }}>Generate Quote</button>
+              </Link>
+            </div>
           )}
         </div>
       )}
