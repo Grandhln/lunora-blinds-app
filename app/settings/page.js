@@ -179,7 +179,7 @@ export default function SettingsPage() {
         <p style={{ opacity: 0.7, marginBottom: '1rem', fontSize: '0.9rem' }}>
           Which column contains which data? (A=0, B=1, C=2, D=3, E=4, etc.)
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '1rem' }}>
           {Object.keys(settings.excelMap || DEFAULT_BUSINESS_SETTINGS.excelMap).map(key => (
             <div className="form-group" key={key}>
               <label>{key.charAt(0).toUpperCase() + key.slice(1)} (Column Index)</label>

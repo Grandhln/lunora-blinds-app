@@ -230,17 +230,30 @@ export default function Home() {
         <h2 style={{ marginBottom: '1rem', color: 'var(--primary-gold)' }}>Customer Information</h2>
         <div className="form-group">
           <label>Customer Name / Identifier</label>
-          <input 
-            type="text" 
-            value={customerName}
-            onChange={e => setCustomerName(e.target.value)}
-            placeholder="e.g. John Doe - Master Bedroom" 
-            disabled={(message && message.type === 'success') || isLoadingCustomer}
-            list="customers-list"
-          />
-          <datalist id="customers-list">
-            {existingCustomers.map(c => <option key={c} value={c} />)}
-          </datalist>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <select 
+              value={existingCustomers.includes(customerName) ? customerName : ""}
+              onChange={e => setCustomerName(e.target.value)}
+              disabled={(message && message.type === 'success') || isLoadingCustomer}
+            >
+              <option value="">-- Select Existing Customer --</option>
+              {existingCustomers.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }}></div>
+              <span style={{ fontSize: '0.8rem', opacity: 0.5, textTransform: 'uppercase', fontWeight: 600 }}>OR</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--glass-border)' }}></div>
+            </div>
+
+            <input 
+              type="text" 
+              value={customerName}
+              onChange={e => setCustomerName(e.target.value)}
+              placeholder="Type new customer name..." 
+              disabled={(message && message.type === 'success') || isLoadingCustomer}
+            />
+          </div>
           {isLoadingCustomer && <p style={{color: 'var(--primary-gold)', fontSize: '0.85rem', marginTop: '0.5rem'}}>Loading existing customer data...</p>}
         </div>
       </div>

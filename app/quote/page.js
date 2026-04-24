@@ -174,24 +174,21 @@ export default function QuotePage() {
         <div className="glass-panel" style={{ marginBottom: '2rem' }}>
           <h2 style={{ marginBottom: '1rem' }}>1. Load Customer Measurements</h2>
           
-          <div style={{ display: 'flex', gap: '2rem', alignItems: 'flex-start' }}>
+          <div className="quote-options">
             <div style={{ flex: 1 }}>
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Option A: Select from Master Sheet</label>
-              <input 
-                type="text" 
+              <select 
                 value={customerName}
                 onChange={e => setCustomerName(e.target.value)}
-                placeholder="Start typing customer name..." 
-                list="customers-list"
                 style={{ width: '100%' }}
-              />
-              <datalist id="customers-list">
-                {existingCustomers.map(c => <option key={c} value={c} />)}
-              </datalist>
+              >
+                <option value="">-- Select a Customer --</option>
+                {existingCustomers.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
               {isLoading && <p style={{color: 'var(--primary-gold)', fontSize: '0.85rem', marginTop: '0.5rem'}}>Loading blinds...</p>}
             </div>
 
-            <div style={{ flex: 1, borderLeft: '1px solid var(--glass-border)', paddingLeft: '2rem' }}>
+            <div className="quote-option-divider">
               <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>Option B: Upload Measurements File (.xlsx/.csv)</label>
               <input type="file" accept=".xlsx, .csv" onChange={handleMeasurementsUpload} />
               <p style={{ fontSize: '0.8rem', opacity: 0.7, marginTop: '0.5rem' }}>
@@ -279,7 +276,7 @@ export default function QuotePage() {
             <div className="glass-panel" style={{ marginBottom: '2rem' }}>
               <h2 style={{ marginBottom: '1rem' }}>4. Global Extras</h2>
               {extras.map((ex, i) => (
-                <div key={i} style={{ display: 'flex', gap: '1rem', marginBottom: '1rem', alignItems: 'center' }}>
+                <div key={i} className="extras-row" style={{ marginBottom: '1rem' }}>
                   <input 
                     type="text" 
                     placeholder="e.g. Solar Panel, Smart Hub" 
