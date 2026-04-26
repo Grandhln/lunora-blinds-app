@@ -67,6 +67,59 @@ async function ensureSummaryTab(sheets, spreadsheetId) {
   return newSheetId;
 }
 
+export async function GET(req) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const customer = searchParams.get('customer');
+
+    if (!customer) {
+      return NextResponse.json({ error: 'Customer name is required' }, { status: 400 });
+    }
+
+    const auth = getGoogleAuth();
+    const sheets = google.sheets({ version: 'v4', auth });
+    const masterSpreadsheetId = process.env.QUOTES_SPREADSHEET_ID || process.env.MASTER_SPREADSHEET_ID;
+
+    if (!masterSpreadsheetId) {
+      return NextResponse.json({ error: 'Spreadsheet ID is not configured.' }, { status: 500 });
+    }
+
+    const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: masterSpreadsheetId });
+    const tabNames = spreadsheet.data.sheets.map(s => s.properties.title);
+
+    if (!tabNames.includes(customer)) {
+      return NextResponse.json({ blinds: null }); // No saved quote exists
+    }
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: masterSpreadsheetId,
+      range: `'${customer}'!A2:L`,
+    });
+
+    const rows = response.data.values || [];
+    const blinds = rows.map((row, index) => ({
+      id: Date.now() + index,
+      location: row[1] || '',
+      width: row[2] || '',
+      height: row[3] || '',
+      mountType: row[4] || 'Inside',
+      colorCode: row[5] || '',
+      mechanism: row[6] || 'Manual',
+      blindType: row[7] || '',
+      notes: row[8] || '',
+      factoryCost: Number(row[9]?.replace(/[^0-9.-]+/g,"")) || 0,
+      upcharge: Number(row[10]?.replace(/[^0-9.-]+/g,"")) || 0,
+      finalPrice: Number(row[11]?.replace(/[^0-9.-]+/g,"")) || 0
+    }));
+
+    return NextResponse.json({ blinds });
+
+  } catch (error) {
+    console.error('Error fetching quote:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 export async function POST(req) {
   try {
     const body = await req.json();

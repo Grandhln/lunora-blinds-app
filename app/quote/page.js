@@ -26,7 +26,7 @@ export default function QuotePage() {
   const [excelData, setExcelData] = useState([]);
 
   const printRef = useRef(null);
-  const handlePrint = useReactToPrint({
+  const triggerPrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `Quote_${customerName}`,
   });
@@ -49,21 +49,44 @@ export default function QuotePage() {
   useEffect(() => {
     if (customerName && existingCustomers.includes(customerName)) {
       setIsLoading(true);
-      fetch(`/api/sheets?customer=${encodeURIComponent(customerName)}`)
+      
+      // 1. First, try to fetch an existing QUOTE
+      fetch(`/api/quotes?customer=${encodeURIComponent(customerName)}`)
         .then(res => res.json())
-        .then(data => {
-          if (data.blinds) {
-            setBlindsList(data.blinds);
-            // Initialize pricing data for each blind if not exists
+        .then(quoteData => {
+          if (quoteData.blinds) {
+            // Quote exists! Load blinds and pricing.
+            setBlindsList(quoteData.blinds);
             const newPricing = {};
-            data.blinds.forEach(b => {
-              newPricing[b.id] = { factoryCost: 0, manualUpcharge: 0 };
+            quoteData.blinds.forEach(b => {
+              newPricing[b.id] = { 
+                factoryCost: b.factoryCost || 0, 
+                manualUpcharge: b.upcharge || 0 
+              };
             });
             setPricingData(newPricing);
+            setIsLoading(false);
+          } else {
+            // 2. No Quote exists, fetch from Orders master sheet
+            fetch(`/api/sheets?customer=${encodeURIComponent(customerName)}`)
+              .then(res => res.json())
+              .then(data => {
+                if (data.blinds) {
+                  setBlindsList(data.blinds);
+                  const newPricing = {};
+                  data.blinds.forEach(b => {
+                    newPricing[b.id] = { factoryCost: 0, manualUpcharge: 0 };
+                  });
+                  setPricingData(newPricing);
+                }
+              })
+              .finally(() => setIsLoading(false));
           }
         })
-        .catch(console.error)
-        .finally(() => setIsLoading(false));
+        .catch(err => {
+          console.error(err);
+          setIsLoading(false);
+        });
     }
   }, [customerName, existingCustomers]);
 
@@ -135,14 +158,16 @@ export default function QuotePage() {
     }));
   };
 
-  const handleSaveQuote = async () => {
+  const handleGeneratePDF = async () => {
     if (!customerName) {
       alert("Please select or enter a customer name.");
       return;
     }
+    
+    // Auto-save first
     setIsSavingQuote(true);
-    setSaveQuoteMessage(null);
-
+    setSaveQuoteMessage({ type: 'success', text: 'Auto-saving to Google Sheets...' });
+    
     try {
       const payload = {
         customerName,
@@ -163,10 +188,13 @@ export default function QuotePage() {
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      setSaveQuoteMessage({ type: 'success', url: data.spreadsheetUrl });
+      if (!res.ok) throw new Error('Failed to save to Google Sheets');
+      
+      setSaveQuoteMessage(null); // Clear message
+      
+      // Trigger PDF Print window immediately after successful save!
+      triggerPrint();
+      
     } catch (err) {
       setSaveQuoteMessage({ type: 'error', text: err.message });
     } finally {
@@ -369,22 +397,14 @@ export default function QuotePage() {
             </div>
 
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-              <button onClick={handleSaveQuote} disabled={isSavingQuote} style={{ flex: 1, fontSize: '1.1rem', padding: '1rem', backgroundColor: 'var(--foreground)', color: 'var(--background)' }}>
-                {isSavingQuote ? 'Saving...' : '💾 Save Quote to Google Sheets'}
-              </button>
-              <button onClick={handlePrint} style={{ flex: 1, fontSize: '1.1rem', padding: '1rem' }}>
-                🖨️ Generate Professional PDF
+              <button onClick={handleGeneratePDF} disabled={isSavingQuote} style={{ flex: 1, fontSize: '1.1rem', padding: '1rem' }}>
+                {isSavingQuote ? 'Saving...' : '🖨️ Save & Generate Professional PDF'}
               </button>
             </div>
 
             {saveQuoteMessage && (
               <div className={`message ${saveQuoteMessage.type}`} style={{ marginBottom: '2rem' }}>
-                {saveQuoteMessage.type === 'error' ? saveQuoteMessage.text : 'Success! Quote saved to Google Sheets.'}
-                {saveQuoteMessage.url && (
-                  <a href={saveQuoteMessage.url} target="_blank" rel="noreferrer" style={{color: 'white', display: 'block', marginTop: '0.5rem'}}>
-                    Open Customer Sheet
-                  </a>
-                )}
+                {saveQuoteMessage.text}
               </div>
             )}
           </>
