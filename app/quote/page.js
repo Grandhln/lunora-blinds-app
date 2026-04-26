@@ -311,6 +311,22 @@ export default function QuotePage() {
               <button onClick={() => setExtras([...extras, { name: "", price: 0 }])} style={{ background: 'transparent', border: '1px solid var(--primary-gold)', color: 'var(--primary-gold)' }}>+ Add Extra</button>
             </div>
 
+            {/* LIVE SUMMARY */}
+            <div className="glass-panel" style={{ marginBottom: '2rem', textAlign: 'right' }}>
+              <h2 style={{ marginBottom: '1rem' }}>Quote Summary</h2>
+              <div style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+                Blinds Subtotal: <strong>${getSubtotal().toFixed(2)}</strong>
+              </div>
+              {getExtrasTotal() > 0 && (
+                <div style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+                  Extras Total: <strong>${getExtrasTotal().toFixed(2)}</strong>
+                </div>
+              )}
+              <div style={{ fontSize: '1.5rem', color: 'var(--primary-gold)', fontWeight: 'bold', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--glass-border)' }}>
+                Final Quote Total: ${getTotal().toFixed(2)}
+              </div>
+            </div>
+
             <button onClick={handlePrint} style={{ width: '100%', fontSize: '1.1rem', padding: '1rem', marginBottom: '2rem' }}>
               🖨️ Generate Professional PDF
             </button>
