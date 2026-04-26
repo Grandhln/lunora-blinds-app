@@ -30,13 +30,25 @@ export const DEFAULT_BUSINESS_SETTINGS = {
 export default function SettingsPage() {
   const [settings, setSettings] = useState(DEFAULT_BUSINESS_SETTINGS);
   const [isSaved, setIsSaved] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     const stored = localStorage.getItem("lunora_business_settings");
     if (stored) {
       setSettings(JSON.parse(stored));
     }
+    setIsInitialized(true);
   }, []);
+
+  // Auto-save whenever settings change after initial load
+  useEffect(() => {
+    if (isInitialized) {
+      localStorage.setItem("lunora_business_settings", JSON.stringify(settings));
+      setIsSaved(true);
+      const timer = setTimeout(() => setIsSaved(false), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [settings, isInitialized]);
 
   const handleChange = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
@@ -85,11 +97,7 @@ export default function SettingsPage() {
     setIsSaved(false);
   };
 
-  const handleSave = () => {
-    localStorage.setItem("lunora_business_settings", JSON.stringify(settings));
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
-  };
+  // Removed handleSave since we now auto-save
 
   return (
     <main className="container" style={{ paddingTop: '2rem' }}>
@@ -225,11 +233,12 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+          <p style={{ color: 'var(--success)', opacity: isSaved ? 1 : 0, transition: 'opacity 0.3s ease', fontWeight: 'bold' }}>
+            ✓ Changes automatically saved
+          </p>
+        </div>
       </div>
-
-      <button onClick={handleSave} style={{ width: '100%' }}>
-        {isSaved ? "✓ Settings Saved" : "Save Settings"}
-      </button>
     </main>
   );
 }
