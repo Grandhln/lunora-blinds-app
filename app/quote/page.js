@@ -147,8 +147,8 @@ export default function QuotePage() {
     }
 
     // Motor
-    if (blind.mechanism === "Motorized") {
-      base += settings.motorBaseCharge;
+    if (blind.mechanism && blind.mechanism.toLowerCase().includes('motor')) {
+      base += Number(settings.motorBaseCharge) || 0;
     }
 
     return base;
