@@ -69,6 +69,22 @@ export default function SettingsPage() {
     setIsSaved(false);
   };
 
+  const handleMoveTermUp = (index) => {
+    if (index === 0) return;
+    const newTerms = [...settings.customTerms];
+    [newTerms[index - 1], newTerms[index]] = [newTerms[index], newTerms[index - 1]];
+    setSettings(prev => ({ ...prev, customTerms: newTerms }));
+    setIsSaved(false);
+  };
+
+  const handleMoveTermDown = (index) => {
+    if (index === settings.customTerms.length - 1) return;
+    const newTerms = [...settings.customTerms];
+    [newTerms[index + 1], newTerms[index]] = [newTerms[index], newTerms[index + 1]];
+    setSettings(prev => ({ ...prev, customTerms: newTerms }));
+    setIsSaved(false);
+  };
+
   const handleSave = () => {
     localStorage.setItem("lunora_business_settings", JSON.stringify(settings));
     setIsSaved(true);
@@ -146,6 +162,24 @@ export default function SettingsPage() {
                 style={{ fontSize: '1.1rem', padding: '1.2rem 1rem' }}
                 placeholder={`Term ${i + 1}`}
               />
+            </div>
+            <div style={{ display: 'flex', gap: '0.25rem' }}>
+              <button 
+                onClick={() => handleMoveTermUp(i)}
+                disabled={i === 0}
+                style={{ width: '40px', height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: '6px', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'white', fontSize: '1.2rem', opacity: i === 0 ? 0.3 : 1 }}
+                title="Move Up"
+              >
+                ↑
+              </button>
+              <button 
+                onClick={() => handleMoveTermDown(i)}
+                disabled={i === settings.customTerms.length - 1}
+                style={{ width: '40px', height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: '6px', background: 'var(--input-bg)', border: '1px solid var(--glass-border)', color: 'white', fontSize: '1.2rem', opacity: i === settings.customTerms.length - 1 ? 0.3 : 1 }}
+                title="Move Down"
+              >
+                ↓
+              </button>
             </div>
             <button 
               onClick={() => handleRemoveTerm(i)}
