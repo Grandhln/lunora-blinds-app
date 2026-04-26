@@ -78,7 +78,7 @@ export async function POST(req) {
 
     const auth = getGoogleAuth();
     const sheets = google.sheets({ version: 'v4', auth });
-    const masterSpreadsheetId = process.env.MASTER_SPREADSHEET_ID;
+    const masterSpreadsheetId = process.env.QUOTES_SPREADSHEET_ID || process.env.MASTER_SPREADSHEET_ID;
 
     // 1. Log to Quotes Summary
     await ensureSummaryTab(sheets, masterSpreadsheetId);
