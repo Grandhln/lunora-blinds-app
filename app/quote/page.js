@@ -243,9 +243,9 @@ export default function QuotePage() {
                   <tbody>
                     {blindsList.map(blind => (
                       <tr key={blind.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-                        <td style={{ padding: '0.5rem' }}>{blind.location}</td>
+                        <td style={{ padding: '0.5rem', textTransform: 'capitalize' }}>{blind.location}</td>
                         <td style={{ padding: '0.5rem' }}>{blind.width}" x {blind.height}"</td>
-                        <td style={{ padding: '0.5rem' }}>{blind.blindType} ({blind.mechanism})</td>
+                        <td style={{ padding: '0.5rem', textTransform: 'capitalize' }}>{blind.blindType} ({blind.mechanism})</td>
                         <td style={{ padding: '0.5rem' }}>
                           <input 
                             type="number" 
@@ -348,11 +348,11 @@ export default function QuotePage() {
               <tbody>
                 {blindsList.map(blind => (
                   <tr key={blind.id}>
-                    <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}><strong>{blind.location}</strong></td>
-                    <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
+                    <td style={{ padding: '10px', borderBottom: '1px solid #eee', textTransform: 'capitalize' }}><strong>{blind.location}</strong></td>
+                    <td style={{ padding: '10px', borderBottom: '1px solid #eee', textTransform: 'capitalize' }}>
                       {blind.blindType} ({blind.mechanism})<br/>
                       <span style={{ color: '#666', fontSize: '12px' }}>
-                        Dims: {blind.width}" x {blind.height}" | Color: {blind.colorCode} | Mount: {blind.mountType}
+                        Color: {blind.colorCode}
                       </span>
                     </td>
                     <td style={{ padding: '10px', borderBottom: '1px solid #eee', textAlign: 'right', fontWeight: 'bold' }}>

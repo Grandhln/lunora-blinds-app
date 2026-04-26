@@ -403,7 +403,7 @@ button:disabled {
 
 @media print {
   @page {
-    margin: 20mm;
+    margin: 0;
   }
   body {
     background: white;
@@ -415,6 +415,7 @@ button:disabled {
   .print-container {
     display: block !important;
     font-family: 'Montserrat', sans-serif !important;
+    padding: 20mm !important;
   }
   .print-only {
     display: block !important;

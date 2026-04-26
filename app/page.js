@@ -372,9 +372,9 @@ export default function Home() {
             {blindsList.map(b => (
               <div className="list-item" key={b.id}>
                 <div>
-                  <strong>{b.location}</strong> - {b.blindType} ({b.width}" x {b.height}")<br/>
+                  <strong style={{ textTransform: 'capitalize' }}>{b.location}</strong> - <span style={{ textTransform: 'capitalize' }}>{b.blindType}</span> ({b.width}" x {b.height}")<br/>
                   <span style={{fontSize: '0.8rem', opacity: 0.7}}>
-                    {b.mountType} Mount | {b.mechanism} | Color: {b.colorCode}
+                    {b.mountType} Mount | {b.mechanism} | <span style={{ textTransform: 'capitalize' }}>Color: {b.colorCode}</span>
                   </span>
                   {b.notes && (
                     <div style={{fontSize: '0.8rem', color: 'var(--primary-gold)', marginTop: '4px', fontStyle: 'italic'}}>
