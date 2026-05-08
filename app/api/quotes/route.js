@@ -34,7 +34,7 @@ async function ensureSummaryTab(sheets, spreadsheetId) {
     spreadsheetId,
     range: `'${tabTitle}'!A1:E1`,
     valueInputOption: 'USER_ENTERED',
-    requestBody: { values: [['Date', 'Customer Name', 'Blinds Subtotal', 'Extras Total', 'Grand Total']] }
+    requestBody: { values: [['Date', 'Customer Name', 'Extras Total', 'Options Info', 'Grand Totals']] }
   });
 
   await sheets.spreadsheets.batchUpdate({
@@ -97,22 +97,56 @@ export async function GET(req) {
     });
 
     const rows = response.data.values || [];
-    const blinds = rows.map((row, index) => ({
-      id: Date.now() + index,
-      location: row[1] || '',
-      width: row[2] || '',
-      height: row[3] || '',
-      mountType: row[4] || 'Inside',
-      colorCode: row[5] || '',
-      mechanism: row[6] || 'Manual',
-      blindType: row[7] || '',
-      notes: row[8] || '',
-      factoryCost: Number(row[9]?.replace(/[^0-9.-]+/g,"")) || 0,
-      upcharge: Number(row[10]?.replace(/[^0-9.-]+/g,"")) || 0,
-      finalPrice: Number(row[11]?.replace(/[^0-9.-]+/g,"")) || 0
-    }));
+    if (rows.length === 0) return NextResponse.json({ blinds: null });
+    
+    // Parse headers to find columns
+    const headers = rows[0] || [];
+    const quoteColumns = [];
+    
+    // Header format: J=OptionName Type/Mech, K=OptionName Factory Cost...
+    for (let i = 9; i < headers.length; i += 4) {
+       const colName = headers[i]?.replace(' Type/Mech', '') || `Option ${(i-9)/4 + 1}`;
+       quoteColumns.push({ id: `col_${i}`, name: colName, blindType: '', mechanism: '' });
+    }
 
-    return NextResponse.json({ blinds });
+    const pricingData = {};
+    const blinds = [];
+
+    rows.slice(1).forEach((row, index) => {
+      const blindId = Date.now() + index;
+      blinds.push({
+        id: blindId,
+        location: row[1] || '',
+        width: row[2] || '',
+        height: row[3] || '',
+        mountType: row[4] || 'Inside',
+        colorCode: row[5] || '',
+        mechanism: row[6] || 'Manual',
+        blindType: row[7] || '',
+        notes: row[8] || ''
+      });
+      
+      pricingData[blindId] = {};
+      
+      if (quoteColumns.length === 0) {
+         // Fallback for old sheets before the update
+         pricingData[blindId]['col_1'] = {
+            factoryCost: Number(row[9]?.replace(/[^0-9.-]+/g,"")) || 0,
+            manualUpcharge: Number(row[10]?.replace(/[^0-9.-]+/g,"")) || 0
+         };
+         if (quoteColumns.length === 0) quoteColumns.push({ id: 'col_1', name: 'Option 1', blindType: '', mechanism: '' });
+      } else {
+         quoteColumns.forEach((col, colIndex) => {
+           const offset = 9 + (colIndex * 4);
+           pricingData[blindId][col.id] = {
+             factoryCost: Number(row[offset + 1]?.replace(/[^0-9.-]+/g,"")) || 0,
+             manualUpcharge: Number(row[offset + 2]?.replace(/[^0-9.-]+/g,"")) || 0
+           };
+         });
+      }
+    });
+
+    return NextResponse.json({ blinds, quoteColumns, pricingData });
 
   } catch (error) {
     console.error('Error fetching quote:', error);
@@ -123,7 +157,7 @@ export async function GET(req) {
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { customerName, blinds, subtotal, extrasTotal, grandTotal } = body;
+    const { customerName, blinds, quoteColumns, subtotals, extrasTotal, grandTotals } = body;
 
     if (!customerName || !blinds) {
       return NextResponse.json({ error: 'Customer Name and blinds are required' }, { status: 400 });
@@ -137,13 +171,16 @@ export async function POST(req) {
     await ensureSummaryTab(sheets, masterSpreadsheetId);
     
     const dateStr = new Date().toLocaleDateString('en-US');
+    const optionsInfo = quoteColumns ? quoteColumns.map(c => c.name).join(' | ') : 'Default';
+    const grandTotalsStr = grandTotals ? Object.values(grandTotals).map(v => `$${v.toFixed(2)}`).join(' | ') : '0';
+    
     await sheets.spreadsheets.values.append({
       spreadsheetId: masterSpreadsheetId,
       range: `'Quotes Summary'!A:E`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: {
-        values: [[dateStr, customerName, `$${subtotal.toFixed(2)}`, `$${extrasTotal.toFixed(2)}`, `$${grandTotal.toFixed(2)}`]]
+        values: [[dateStr, customerName, `$${(extrasTotal||0).toFixed(2)}`, optionsInfo, grandTotalsStr]]
       }
     });
 
@@ -176,37 +213,54 @@ export async function POST(req) {
       });
     }
 
-    // Write headers (A through L)
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: masterSpreadsheetId,
-      range: `'${customerName}'!A1:L1`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [['Customer Name', 'Location', 'Width', 'Height', 'Mount Type', 'Color Code', 'Mechanism', 'Blind Type', 'Notes', 'Factory Cost', 'Upcharges/Surcharges', 'Final Price']]
-      }
-    });
+    // Write headers
+    const baseHeaders = ['Customer Name', 'Location', 'Width', 'Height', 'Mount Type', 'Color Code', 'Mechanism', 'Blind Type', 'Notes'];
+    const dynamicHeaders = [];
+    if (quoteColumns) {
+      quoteColumns.forEach(col => {
+        dynamicHeaders.push(`${col.name} Type/Mech`);
+        dynamicHeaders.push(`${col.name} Factory Cost`);
+        dynamicHeaders.push(`${col.name} Upcharge`);
+        dynamicHeaders.push(`${col.name} Final Price`);
+      });
+    }
+    
+    const allHeaders = [...baseHeaders, ...dynamicHeaders];
 
     // Prepare rows
-    const rows = blinds.map(b => [
-      customerName, b.location, b.width, b.height, b.mountType, b.colorCode, b.mechanism, b.blindType, b.notes || '',
-      `$${b.factoryCost?.toFixed(2) || '0.00'}`,
-      `$${b.upcharge?.toFixed(2) || '0.00'}`,
-      `$${b.finalPrice?.toFixed(2) || '0.00'}`
-    ]);
+    const rows = blinds.map(b => {
+      const baseRow = [
+        customerName, b.location, b.width, b.height, b.mountType, b.colorCode, b.mechanism, b.blindType, b.notes || ''
+      ];
+      
+      const dynamicRow = [];
+      if (quoteColumns) {
+        quoteColumns.forEach(col => {
+          const colData = b[col.id] || {};
+          const typeMech = (col.blindType || b.blindType) + ' (' + (col.mechanism || b.mechanism) + ')';
+          dynamicRow.push(typeMech);
+          dynamicRow.push(`$${(colData.factoryCost || 0).toFixed(2)}`);
+          dynamicRow.push(`$${(colData.upcharge || 0).toFixed(2)}`);
+          dynamicRow.push(`$${(colData.finalPrice || 0).toFixed(2)}`);
+        });
+      }
+      
+      return [...baseRow, ...dynamicRow];
+    });
 
-    // Clear existing data from A2:L
+    // Clear existing data completely
     await sheets.spreadsheets.values.clear({
       spreadsheetId: masterSpreadsheetId,
-      range: `'${customerName}'!A2:L`,
+      range: `'${customerName}'!A1:ZZ`,
     });
 
     // Write new data
     await sheets.spreadsheets.values.update({
       spreadsheetId: masterSpreadsheetId,
-      range: `'${customerName}'!A2:L`,
+      range: `'${customerName}'!A1`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: rows
+        values: [allHeaders, ...rows]
       }
     });
 

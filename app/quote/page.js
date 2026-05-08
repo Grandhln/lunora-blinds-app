@@ -16,7 +16,10 @@ export default function QuotePage() {
   const [isSavingQuote, setIsSavingQuote] = useState(false);
   const [saveQuoteMessage, setSaveQuoteMessage] = useState(null);
 
-  // Pricing State (maps blind id to an object { factoryCost, manualUpcharge })
+  // Quote Columns (Options)
+  const [quoteColumns, setQuoteColumns] = useState([{ id: 'col_1', name: 'Option 1', blindType: '', mechanism: '' }]);
+
+  // Pricing State (maps blind id to { col_id: { factoryCost, manualUpcharge } })
   const [pricingData, setPricingData] = useState({});
 
   // Global Extras
@@ -45,6 +48,25 @@ export default function QuotePage() {
       .catch(console.error);
   }, []);
 
+  const getAutoFactoryCost = (blind, column, currentSettings) => {
+    const width = parseFloat(blind.width) || 0;
+    const height = parseFloat(blind.height) || 0;
+    const typeToMatch = column?.blindType || blind.blindType || '';
+    
+    let multiplier = 33; // Default
+    if (currentSettings.factoryMultipliers && currentSettings.factoryMultipliers.length > 0) {
+      const match = currentSettings.factoryMultipliers.find(m => m.type.toLowerCase() === typeToMatch.toLowerCase());
+      if (match) {
+        multiplier = match.value;
+      } else {
+        const defaultMatch = currentSettings.factoryMultipliers.find(m => m.type.toLowerCase() === 'default');
+        if (defaultMatch) multiplier = defaultMatch.value;
+      }
+    }
+    
+    return (width * height / 10000) * multiplier;
+  };
+
   // Fetch Blinds when customer selected
   useEffect(() => {
     if (customerName && existingCustomers.includes(customerName)) {
@@ -57,14 +79,21 @@ export default function QuotePage() {
           if (quoteData.blinds) {
             // Quote exists! Load blinds and pricing.
             setBlindsList(quoteData.blinds);
-            const newPricing = {};
-            quoteData.blinds.forEach(b => {
-              newPricing[b.id] = { 
-                factoryCost: b.factoryCost || 0, 
-                manualUpcharge: b.upcharge || 0 
-              };
-            });
-            setPricingData(newPricing);
+            // For backward compatibility or new format
+            if (quoteData.quoteColumns) {
+               setQuoteColumns(quoteData.quoteColumns);
+               setPricingData(quoteData.pricingData);
+            } else {
+               const defaultCol = { id: 'col_1', name: 'Option 1', blindType: '', mechanism: '' };
+               setQuoteColumns([defaultCol]);
+               const newPricing = {};
+               quoteData.blinds.forEach(b => {
+                 newPricing[b.id] = { 
+                   col_1: { factoryCost: b.factoryCost || getAutoFactoryCost(b, defaultCol, settings), manualUpcharge: b.upcharge || 0 }
+                 };
+               });
+               setPricingData(newPricing);
+            }
             setIsLoading(false);
           } else {
             // 2. No Quote exists, fetch from Orders master sheet
@@ -73,9 +102,13 @@ export default function QuotePage() {
               .then(data => {
                 if (data.blinds) {
                   setBlindsList(data.blinds);
+                  const defaultCol = { id: 'col_1', name: 'Option 1', blindType: '', mechanism: '' };
+                  setQuoteColumns([defaultCol]);
                   const newPricing = {};
                   data.blinds.forEach(b => {
-                    newPricing[b.id] = { factoryCost: 0, manualUpcharge: 0 };
+                    newPricing[b.id] = { 
+                      col_1: { factoryCost: getAutoFactoryCost(b, defaultCol, settings), manualUpcharge: 0 } 
+                    };
                   });
                   setPricingData(newPricing);
                 }
@@ -105,6 +138,8 @@ export default function QuotePage() {
       const map = settings.excelMap || DEFAULT_BUSINESS_SETTINGS.excelMap;
       const parsedBlinds = [];
       const newPricing = {};
+      const defaultCol = { id: 'col_1', name: 'Option 1', blindType: '', mechanism: '' };
+      setQuoteColumns([defaultCol]);
       
       const startIndex = settings.ignoreRows !== undefined ? settings.ignoreRows : 1;
       for (let i = startIndex; i < data.length; i++) {
@@ -112,7 +147,7 @@ export default function QuotePage() {
         if (!row || row.length === 0) continue;
         
         const blindId = Date.now() + i;
-        parsedBlinds.push({
+        const blindObj = {
           id: blindId,
           location: row[map.location] || '',
           width: row[map.width] || '',
@@ -122,8 +157,11 @@ export default function QuotePage() {
           mechanism: row[map.mechanism] || 'Manual',
           blindType: row[map.blindType] || '',
           notes: row[map.notes] || ''
-        });
-        newPricing[blindId] = { factoryCost: 0, manualUpcharge: 0 };
+        };
+        parsedBlinds.push(blindObj);
+        newPricing[blindId] = { 
+          col_1: { factoryCost: getAutoFactoryCost(blindObj, defaultCol, settings), manualUpcharge: 0 } 
+        };
       }
       
       setBlindsList(parsedBlinds);
@@ -151,12 +189,25 @@ export default function QuotePage() {
     reader.readAsBinaryString(file);
   };
 
-  const handlePriceUpdate = (id, field, value) => {
+  const handlePriceUpdate = (id, colId, field, value) => {
     setPricingData(prev => ({
       ...prev,
-      [id]: { ...prev[id], [field]: Number(value) }
+      [id]: { 
+        ...prev[id], 
+        [colId]: { ...prev[id]?.[colId], [field]: Number(value) } 
+      }
     }));
   };
+
+  const getSubtotal = (col) => {
+    return blindsList.reduce((acc, blind) => acc + calculateBlindPrice(blind, col), 0);
+  };
+
+  const getExtrasTotal = () => {
+    return extras.reduce((acc, ex) => acc + (Number(ex.price) || 0), 0);
+  };
+
+  const getTotal = (col) => getSubtotal(col) + getExtrasTotal();
 
   const handleGeneratePDF = async () => {
     if (!customerName) {
@@ -171,15 +222,21 @@ export default function QuotePage() {
     try {
       const payload = {
         customerName,
-        subtotal: getSubtotal(),
+        quoteColumns,
+        subtotals: quoteColumns.reduce((acc, col) => ({ ...acc, [col.id]: getSubtotal(col) }), {}),
         extrasTotal: getExtrasTotal(),
-        grandTotal: getTotal(),
-        blinds: blindsList.map(b => ({
-          ...b,
-          factoryCost: pricingData[b.id]?.factoryCost || 0,
-          upcharge: pricingData[b.id]?.manualUpcharge || 0,
-          finalPrice: calculateBlindPrice(b)
-        }))
+        grandTotals: quoteColumns.reduce((acc, col) => ({ ...acc, [col.id]: getTotal(col) }), {}),
+        blinds: blindsList.map(b => {
+          const blindPricing = { ...b };
+          quoteColumns.forEach(col => {
+             blindPricing[col.id] = {
+               factoryCost: pricingData[b.id]?.[col.id]?.factoryCost || 0,
+               upcharge: pricingData[b.id]?.[col.id]?.manualUpcharge || 0,
+               finalPrice: calculateBlindPrice(b, col)
+             };
+          });
+          return blindPricing;
+        })
       };
 
       const res = await fetch('/api/quotes', {
@@ -202,8 +259,8 @@ export default function QuotePage() {
     }
   };
 
-  const calculateBlindPrice = (blind) => {
-    const pricing = pricingData[blind.id] || { factoryCost: 0, manualUpcharge: 0 };
+  const calculateBlindPrice = (blind, col) => {
+    const pricing = pricingData[blind.id]?.[col.id] || { factoryCost: 0, manualUpcharge: 0 };
     let base = settings.markupType === 'flat' 
       ? pricing.factoryCost + settings.standardMarkup 
       : pricing.factoryCost * (1 + (settings.standardMarkup / 100));
@@ -216,22 +273,13 @@ export default function QuotePage() {
     }
 
     // Motor
-    if (blind.mechanism && blind.mechanism.toLowerCase().includes('motor')) {
+    const mechanismToMatch = col?.mechanism || blind.mechanism || '';
+    if (mechanismToMatch.toLowerCase().includes('motor')) {
       base += Number(settings.motorBaseCharge) || 0;
     }
 
     return base;
   };
-
-  const getSubtotal = () => {
-    return blindsList.reduce((acc, blind) => acc + calculateBlindPrice(blind), 0);
-  };
-
-  const getExtrasTotal = () => {
-    return extras.reduce((acc, ex) => acc + (Number(ex.price) || 0), 0);
-  };
-
-  const getTotal = () => getSubtotal() + getExtrasTotal();
 
   return (
     <main className="container" style={{ paddingTop: '2rem' }}>
@@ -296,17 +344,102 @@ export default function QuotePage() {
 
             {/* PRICING TABLE */}
             <div className="glass-panel" style={{ marginBottom: '2rem' }}>
-              <h2 style={{ marginBottom: '1rem' }}>3. Input Costs & Calculate</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h2>3. Input Costs & Calculate</h2>
+                <button 
+                  onClick={() => {
+                    const newId = `col_${Date.now()}`;
+                    const newCol = { id: newId, name: `Option ${quoteColumns.length + 1}`, blindType: '', mechanism: '' };
+                    setQuoteColumns([...quoteColumns, newCol]);
+                    
+                    const newPricing = { ...pricingData };
+                    blindsList.forEach(b => {
+                      newPricing[b.id] = { 
+                        ...newPricing[b.id], 
+                        [newId]: { factoryCost: getAutoFactoryCost(b, newCol, settings), manualUpcharge: 0 } 
+                      };
+                    });
+                    setPricingData(newPricing);
+                  }}
+                  style={{ background: 'transparent', border: '1px solid var(--primary-gold)', color: 'var(--primary-gold)' }}
+                >
+                  + Add Quote Column
+                </button>
+              </div>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
                   <thead>
                     <tr style={{ borderBottom: '1px solid var(--primary-gold)', color: 'var(--primary-gold)' }}>
                       <th style={{ padding: '0.5rem' }}>Location</th>
                       <th style={{ padding: '0.5rem' }}>Dims (W x H)</th>
-                      <th style={{ padding: '0.5rem' }}>Type</th>
-                      <th style={{ padding: '0.5rem' }}>Factory Cost ($)</th>
-                      <th style={{ padding: '0.5rem' }}>Upcharge ($)</th>
-                      <th style={{ padding: '0.5rem' }}>Final Price</th>
+                      <th style={{ padding: '0.5rem' }}>Original Type</th>
+                      {quoteColumns.map((col, idx) => (
+                        <th key={col.id} style={{ padding: '0.5rem', borderLeft: '1px solid rgba(255,255,255,0.2)', minWidth: '250px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <input 
+                              type="text" 
+                              value={col.name} 
+                              onChange={(e) => {
+                                const newCols = [...quoteColumns];
+                                newCols[idx].name = e.target.value;
+                                setQuoteColumns(newCols);
+                              }} 
+                              style={{ width: '80%', fontWeight: 'bold' }} 
+                            />
+                            {quoteColumns.length > 1 && (
+                              <button 
+                                onClick={() => {
+                                  setQuoteColumns(quoteColumns.filter(c => c.id !== col.id));
+                                  // Optionally clean up pricingData, but not strictly necessary
+                                }}
+                                style={{ background: 'transparent', color: 'var(--error)', border: 'none', cursor: 'pointer', fontSize: '1.2rem' }}
+                                title="Remove Column"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+                            <input 
+                              type="text" 
+                              placeholder="Override Type (e.g. Zebra)" 
+                              value={col.blindType} 
+                              onChange={(e) => {
+                                const newCols = [...quoteColumns];
+                                newCols[idx].blindType = e.target.value;
+                                setQuoteColumns(newCols);
+                                
+                                const newPricing = { ...pricingData };
+                                blindsList.forEach(b => {
+                                  if (!newPricing[b.id]) newPricing[b.id] = {};
+                                  if (!newPricing[b.id][col.id]) newPricing[b.id][col.id] = { factoryCost: 0, manualUpcharge: 0 };
+                                  newPricing[b.id][col.id].factoryCost = getAutoFactoryCost(b, newCols[idx], settings);
+                                });
+                                setPricingData(newPricing);
+                              }} 
+                              style={{ flex: 1 }} 
+                            />
+                            <select 
+                              value={col.mechanism} 
+                              onChange={(e) => {
+                                const newCols = [...quoteColumns];
+                                newCols[idx].mechanism = e.target.value;
+                                setQuoteColumns(newCols);
+                              }} 
+                              style={{ flex: 1, padding: '0.3rem', backgroundColor: 'var(--input-bg)', color: 'white' }}
+                            >
+                              <option value="">(Original Mech)</option>
+                              <option value="Manual">Manual</option>
+                              <option value="Motorized">Motorized</option>
+                            </select>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.7, fontSize: '0.8rem' }}>
+                            <span style={{ width: '70px' }}>Fact. Cost</span>
+                            <span style={{ width: '70px' }}>Upchg</span>
+                            <span style={{ flex: 1, textAlign: 'right' }}>Final</span>
+                          </div>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -314,26 +447,30 @@ export default function QuotePage() {
                       <tr key={blind.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                         <td style={{ padding: '0.5rem', textTransform: 'capitalize' }}>{blind.location}</td>
                         <td style={{ padding: '0.5rem' }}>{blind.width}" x {blind.height}"</td>
-                        <td style={{ padding: '0.5rem', textTransform: 'capitalize' }}>{blind.blindType} ({blind.mechanism})</td>
-                        <td style={{ padding: '0.5rem' }}>
-                          <input 
-                            type="number" 
-                            style={{ width: '80px', padding: '0.2rem' }}
-                            value={pricingData[blind.id]?.factoryCost || ''}
-                            onChange={(e) => handlePriceUpdate(blind.id, 'factoryCost', e.target.value)}
-                          />
+                        <td style={{ padding: '0.5rem', textTransform: 'capitalize', fontSize: '0.8rem' }}>
+                          {blind.blindType} <br/><span style={{opacity: 0.7}}>({blind.mechanism})</span>
                         </td>
-                        <td style={{ padding: '0.5rem' }}>
-                          <input 
-                            type="number" 
-                            style={{ width: '80px', padding: '0.2rem' }}
-                            value={pricingData[blind.id]?.manualUpcharge || ''}
-                            onChange={(e) => handlePriceUpdate(blind.id, 'manualUpcharge', e.target.value)}
-                          />
-                        </td>
-                        <td style={{ padding: '0.5rem', fontWeight: 'bold' }}>
-                          ${calculateBlindPrice(blind).toFixed(2)}
-                        </td>
+                        {quoteColumns.map(col => (
+                          <td key={col.id} style={{ padding: '0.5rem', borderLeft: '1px solid rgba(255,255,255,0.2)' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                              <input 
+                                type="number" 
+                                style={{ width: '70px', padding: '0.2rem' }}
+                                value={pricingData[blind.id]?.[col.id]?.factoryCost || ''}
+                                onChange={(e) => handlePriceUpdate(blind.id, col.id, 'factoryCost', e.target.value)}
+                              />
+                              <input 
+                                type="number" 
+                                style={{ width: '70px', padding: '0.2rem' }}
+                                value={pricingData[blind.id]?.[col.id]?.manualUpcharge || ''}
+                                onChange={(e) => handlePriceUpdate(blind.id, col.id, 'manualUpcharge', e.target.value)}
+                              />
+                              <span style={{ fontWeight: 'bold', marginLeft: 'auto', color: 'var(--primary-gold)' }}>
+                                ${calculateBlindPrice(blind, col).toFixed(2)}
+                              </span>
+                            </div>
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
@@ -381,18 +518,25 @@ export default function QuotePage() {
             </div>
 
             {/* LIVE SUMMARY */}
-            <div className="glass-panel" style={{ marginBottom: '2rem', textAlign: 'right' }}>
-              <h2 style={{ marginBottom: '1rem' }}>Quote Summary</h2>
-              <div style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-                Blinds Subtotal: <strong>${getSubtotal().toFixed(2)}</strong>
-              </div>
-              {getExtrasTotal() > 0 && (
-                <div style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-                  Extras Total: <strong>${getExtrasTotal().toFixed(2)}</strong>
-                </div>
-              )}
-              <div style={{ fontSize: '1.5rem', color: 'var(--primary-gold)', fontWeight: 'bold', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--glass-border)' }}>
-                Final Quote Total: ${getTotal().toFixed(2)}
+            <div className="glass-panel" style={{ marginBottom: '2rem' }}>
+              <h2 style={{ marginBottom: '1rem', textAlign: 'right' }}>Quote Summary</h2>
+              <div style={{ display: 'flex', gap: '2rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                {quoteColumns.map(col => (
+                  <div key={col.id} style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', minWidth: '250px', textAlign: 'right' }}>
+                    <h3 style={{ color: 'var(--primary-gold)', marginBottom: '1rem' }}>{col.name}</h3>
+                    <div style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+                      Blinds Subtotal: <strong>${getSubtotal(col).toFixed(2)}</strong>
+                    </div>
+                    {getExtrasTotal() > 0 && (
+                      <div style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+                        Extras Total: <strong>${getExtrasTotal().toFixed(2)}</strong>
+                      </div>
+                    )}
+                    <div style={{ fontSize: '1.5rem', color: 'var(--primary-gold)', fontWeight: 'bold', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--glass-border)' }}>
+                      Total: ${getTotal(col).toFixed(2)}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -435,22 +579,25 @@ export default function QuotePage() {
                 <tr style={{ backgroundColor: '#f9f9f9', textAlign: 'left' }}>
                   <th style={{ padding: '10px', borderBottom: '1px solid #ccc' }}>Location</th>
                   <th style={{ padding: '10px', borderBottom: '1px solid #ccc' }}>Details</th>
-                  <th style={{ padding: '10px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>Price</th>
+                  {quoteColumns.map(col => (
+                    <th key={col.id} style={{ padding: '10px', borderBottom: '1px solid #ccc', textAlign: 'right' }}>{col.name} Price</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {blindsList.map(blind => (
                   <tr key={blind.id}>
-                    <td style={{ padding: '10px', borderBottom: '1px solid #eee', textTransform: 'capitalize' }}><strong>{blind.location}</strong></td>
                     <td style={{ padding: '10px', borderBottom: '1px solid #eee', textTransform: 'capitalize' }}>
-                      {blind.blindType} ({blind.mechanism})<br/>
-                      <span style={{ color: '#666', fontSize: '12px' }}>
-                        Color: {blind.colorCode}
-                      </span>
+                      <strong>{blind.location}</strong>
                     </td>
-                    <td style={{ padding: '10px', borderBottom: '1px solid #eee', textAlign: 'right', fontWeight: 'bold' }}>
-                      ${calculateBlindPrice(blind).toFixed(2)}
+                    <td style={{ padding: '10px', borderBottom: '1px solid #eee', color: '#555' }}>
+                      {blind.blindType} - {blind.width}" x {blind.height}" - {blind.mountType}
                     </td>
+                    {quoteColumns.map(col => (
+                      <td key={col.id} style={{ padding: '10px', borderBottom: '1px solid #eee', textAlign: 'right', fontWeight: 'bold' }}>
+                        ${calculateBlindPrice(blind, col).toFixed(2)}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -476,23 +623,26 @@ export default function QuotePage() {
             )}
 
             {/* Totals */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '40px' }}>
-              <div style={{ width: '300px', backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '4px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                  <span>Subtotal:</span>
-                  <span>${getSubtotal().toFixed(2)}</span>
-                </div>
-                {getExtrasTotal() > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span>Extras:</span>
-                    <span>${getExtrasTotal().toFixed(2)}</span>
+            <div style={{ display: 'flex', gap: '2rem', justifyContent: 'flex-end', marginBottom: '40px' }}>
+              {quoteColumns.map(col => (
+                <div key={col.id} style={{ width: '250px', backgroundColor: '#f9f9f9', padding: '20px', borderRadius: '4px', textAlign: 'right' }}>
+                  <h3 style={{ margin: '0 0 10px 0', color: '#D4AF37' }}>{col.name}</h3>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#666' }}>
+                    <span>Subtotal:</span>
+                    <span>${getSubtotal(col).toFixed(2)}</span>
                   </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #D4AF37', paddingTop: '10px', marginTop: '10px', fontSize: '18px', fontWeight: 'bold' }}>
-                  <span>Total:</span>
-                  <span>${getTotal().toFixed(2)}</span>
+                  {getExtrasTotal() > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#666' }}>
+                      <span>Extras:</span>
+                      <span>${getExtrasTotal().toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '2px solid #D4AF37', paddingTop: '10px', marginTop: '10px', fontSize: '18px', fontWeight: 'bold' }}>
+                    <span>Total:</span>
+                    <span>${getTotal(col).toFixed(2)}</span>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
 
             {/* Terms */}
