@@ -48,24 +48,7 @@ export default function QuotePage() {
       .catch(console.error);
   }, []);
 
-  const getAutoFactoryCost = (blind, column, currentSettings) => {
-    const width = parseFloat(blind.width) || 0;
-    const height = parseFloat(blind.height) || 0;
-    const typeToMatch = column?.blindType || blind.blindType || '';
-    
-    let multiplier = 33; // Default
-    if (currentSettings.factoryMultipliers && currentSettings.factoryMultipliers.length > 0) {
-      const match = currentSettings.factoryMultipliers.find(m => m.type.toLowerCase() === typeToMatch.toLowerCase());
-      if (match) {
-        multiplier = match.value;
-      } else {
-        const defaultMatch = currentSettings.factoryMultipliers.find(m => m.type.toLowerCase() === 'default');
-        if (defaultMatch) multiplier = defaultMatch.value;
-      }
-    }
-    
-    return (width * height / 10000) * multiplier;
-  };
+
 
   // Fetch Blinds when customer selected
   useEffect(() => {
@@ -89,7 +72,7 @@ export default function QuotePage() {
                const newPricing = {};
                quoteData.blinds.forEach(b => {
                  newPricing[b.id] = { 
-                   col_1: { factoryCost: b.factoryCost || getAutoFactoryCost(b, defaultCol, settings), manualUpcharge: b.upcharge || 0 }
+                   col_1: { factoryCost: b.factoryCost || 0, manualUpcharge: b.upcharge || 0 }
                  };
                });
                setPricingData(newPricing);
@@ -107,7 +90,7 @@ export default function QuotePage() {
                   const newPricing = {};
                   data.blinds.forEach(b => {
                     newPricing[b.id] = { 
-                      col_1: { factoryCost: getAutoFactoryCost(b, defaultCol, settings), manualUpcharge: 0 } 
+                      col_1: { factoryCost: 0, manualUpcharge: 0 } 
                     };
                   });
                   setPricingData(newPricing);
@@ -160,7 +143,7 @@ export default function QuotePage() {
         };
         parsedBlinds.push(blindObj);
         newPricing[blindId] = { 
-          col_1: { factoryCost: getAutoFactoryCost(blindObj, defaultCol, settings), manualUpcharge: 0 } 
+          col_1: { factoryCost: 0, manualUpcharge: 0 } 
         };
       }
       
@@ -273,7 +256,7 @@ export default function QuotePage() {
     }
 
     // Motor
-    const mechanismToMatch = col?.mechanism || blind.mechanism || '';
+    const mechanismToMatch = blind.mechanism || '';
     if (mechanismToMatch.toLowerCase().includes('motor')) {
       base += Number(settings.motorBaseCharge) || 0;
     }
@@ -356,7 +339,7 @@ export default function QuotePage() {
                     blindsList.forEach(b => {
                       newPricing[b.id] = { 
                         ...newPricing[b.id], 
-                        [newId]: { factoryCost: getAutoFactoryCost(b, newCol, settings), manualUpcharge: 0 } 
+                        [newId]: { factoryCost: 0, manualUpcharge: 0 } 
                       };
                     });
                     setPricingData(newPricing);
@@ -398,40 +381,6 @@ export default function QuotePage() {
                                 ✕
                               </button>
                             )}
-                          </div>
-                          <div style={{ display: 'flex', gap: '0.5rem', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
-                            <input 
-                              type="text" 
-                              placeholder="Override Type (e.g. Zebra)" 
-                              value={col.blindType} 
-                              onChange={(e) => {
-                                const newCols = [...quoteColumns];
-                                newCols[idx].blindType = e.target.value;
-                                setQuoteColumns(newCols);
-                                
-                                const newPricing = { ...pricingData };
-                                blindsList.forEach(b => {
-                                  if (!newPricing[b.id]) newPricing[b.id] = {};
-                                  if (!newPricing[b.id][col.id]) newPricing[b.id][col.id] = { factoryCost: 0, manualUpcharge: 0 };
-                                  newPricing[b.id][col.id].factoryCost = getAutoFactoryCost(b, newCols[idx], settings);
-                                });
-                                setPricingData(newPricing);
-                              }} 
-                              style={{ flex: 1 }} 
-                            />
-                            <select 
-                              value={col.mechanism} 
-                              onChange={(e) => {
-                                const newCols = [...quoteColumns];
-                                newCols[idx].mechanism = e.target.value;
-                                setQuoteColumns(newCols);
-                              }} 
-                              style={{ flex: 1, padding: '0.3rem', backgroundColor: 'var(--input-bg)', color: 'white' }}
-                            >
-                              <option value="">(Original Mech)</option>
-                              <option value="Manual">Manual</option>
-                              <option value="Motorized">Motorized</option>
-                            </select>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.7, fontSize: '0.8rem' }}>
                             <span style={{ width: '70px' }}>Fact. Cost</span>

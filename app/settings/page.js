@@ -9,11 +9,6 @@ export const DEFAULT_BUSINESS_SETTINGS = {
   standardMarkup: 40, // 40%
   markupType: 'percent',
   ignoreRows: 1,
-  factoryMultipliers: [
-    { type: 'Roller', value: 33 },
-    { type: 'Zebra', value: 33 },
-    { type: 'Default', value: 33 }
-  ],
   customTerms: [
     "Free Installation",
     "80% payment due before production",
@@ -68,23 +63,7 @@ export default function SettingsPage() {
     setIsSaved(false);
   };
 
-  const handleAddMultiplier = () => {
-    setSettings(prev => ({ 
-      ...prev, 
-      factoryMultipliers: [...(prev.factoryMultipliers || []), { type: "", value: 33 }] 
-    }));
-  };
 
-  const handleUpdateMultiplier = (index, field, val) => {
-    const newMults = [...(settings.factoryMultipliers || [])];
-    newMults[index][field] = field === 'value' ? Number(val) : val;
-    setSettings(prev => ({ ...prev, factoryMultipliers: newMults }));
-  };
-
-  const handleRemoveMultiplier = (index) => {
-    const newMults = (settings.factoryMultipliers || []).filter((_, i) => i !== index);
-    setSettings(prev => ({ ...prev, factoryMultipliers: newMults }));
-  };
 
   const handleTermChange = (index, value) => {
     const newTerms = [...settings.customTerms];
@@ -178,37 +157,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <h3 style={{ marginTop: '2rem', marginBottom: '1rem' }}>Factory Cost Multipliers</h3>
-        <p style={{ opacity: 0.7, marginBottom: '1rem', fontSize: '0.9rem' }}>
-          Define the multiplier for the factory cost formula <code>(Width * Height / 10000) * Multiplier</code>.
-        </p>
-        {(settings.factoryMultipliers || []).map((mult, i) => (
-          <div key={i} style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-            <input 
-              type="text" 
-              placeholder="Blind Type (e.g. Roller)" 
-              value={mult.type}
-              onChange={(e) => handleUpdateMultiplier(i, 'type', e.target.value)}
-              style={{ flex: 2, padding: '0.75rem' }}
-            />
-            <input 
-              type="number" 
-              placeholder="Multiplier" 
-              value={mult.value}
-              onChange={(e) => handleUpdateMultiplier(i, 'value', e.target.value)}
-              style={{ flex: 1, padding: '0.75rem' }}
-            />
-            <button 
-              onClick={() => handleRemoveMultiplier(i)}
-              style={{ width: '40px', height: '40px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, borderRadius: '50%', background: 'transparent', border: '1px solid var(--error)', color: 'var(--error)', fontSize: '1.2rem' }}
-            >
-              ✕
-            </button>
-          </div>
-        ))}
-        <button onClick={handleAddMultiplier} style={{ background: 'transparent', border: '1px solid var(--primary-gold)', color: 'var(--primary-gold)', marginBottom: '1rem', padding: '0.5rem 1rem' }}>
-          + Add Multiplier
-        </button>
+
       </div>
 
       <div className="glass-panel" style={{ marginBottom: '2rem' }}>
