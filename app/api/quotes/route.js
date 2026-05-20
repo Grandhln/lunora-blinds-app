@@ -107,7 +107,10 @@ export async function GET(req) {
     
     // Header format: J=OptionName Type/Mech, K=OptionName Factory Cost...
     for (let i = 9; i < headers.length; i += 4) {
-       const colName = headers[i]?.replace(' Type/Mech', '') || `Option ${(i-9)/4 + 1}`;
+       let colName = headers[i]?.replace(' Type/Mech', '') || '';
+       if (!colName || colName.trim() === '' || colName.includes('$') || !isNaN(colName) || colName.toLowerCase() === 'factory cost') {
+         colName = `Option ${(i-9)/4 + 1}`;
+       }
        quoteColumns.push({ id: `col_${i}`, name: colName, blindType: '', mechanism: '' });
     }
 

@@ -38,6 +38,17 @@ export default function QuotePage() {
     // Load Settings
     const storedSettings = localStorage.getItem("lunora_business_settings");
     if (storedSettings) setSettings(JSON.parse(storedSettings));
+    
+    // Fresh Settings from Sheets
+    fetch(`/api/settings?t=${Date.now()}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.settings) {
+          setSettings(data.settings);
+          localStorage.setItem("lunora_business_settings", JSON.stringify(data.settings));
+        }
+      })
+      .catch(console.error);
 
     // Load Customers
     fetch(`/api/sheets?t=${Date.now()}`)
@@ -540,7 +551,7 @@ export default function QuotePage() {
                       <strong>{blind.location}</strong>
                     </td>
                     <td style={{ padding: '10px', borderBottom: '1px solid #eee', color: '#555' }}>
-                      {blind.blindType} - {blind.width}" x {blind.height}" - {blind.mountType}
+                      {blind.blindType} ({blind.mechanism}) - {blind.mountType}
                     </td>
                     {quoteColumns.map(col => (
                       <td key={col.id} style={{ padding: '10px', borderBottom: '1px solid #eee', textAlign: 'right', fontWeight: 'bold' }}>

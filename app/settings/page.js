@@ -31,28 +31,63 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState(DEFAULT_BUSINESS_SETTINGS);
   const [isSaved, setIsSaved] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
+  const [cloudError, setCloudError] = useState(null);
 
   useEffect(() => {
+    // 1. Load from localStorage first (for quick initialization)
     const stored = localStorage.getItem("lunora_business_settings");
     if (stored) {
       setSettings(JSON.parse(stored));
     }
-    setIsInitialized(true);
+
+    // 2. Fetch fresh settings from the cloud (Google Sheets)
+    fetch(`/api/settings?t=${Date.now()}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.settings) {
+          setSettings(data.settings);
+          localStorage.setItem("lunora_business_settings", JSON.stringify(data.settings));
+        }
+        setIsInitialized(true);
+      })
+      .catch(err => {
+        console.error("Error loading settings from cloud:", err);
+        setIsInitialized(true);
+      });
   }, []);
 
-  // Auto-save whenever settings change after initial load
+  // Save to localStorage whenever local state changes
   useEffect(() => {
     if (isInitialized) {
       localStorage.setItem("lunora_business_settings", JSON.stringify(settings));
-      setIsSaved(true);
-      const timer = setTimeout(() => setIsSaved(false), 2000);
-      return () => clearTimeout(timer);
     }
   }, [settings, isInitialized]);
 
+  const handleSaveToCloud = async () => {
+    setIsSavingCloud(true);
+    setCloudError(null);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings })
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to save settings');
+      }
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    } catch (err) {
+      setCloudError(err.message);
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
+
   const handleChange = (key, value) => {
     setSettings(prev => ({ ...prev, [key]: value }));
-    setIsSaved(false);
   };
 
   const handleMapChange = (key, value) => {
@@ -60,7 +95,6 @@ export default function SettingsPage() {
       ...prev, 
       excelMap: { ...prev.excelMap, [key]: Number(value) } 
     }));
-    setIsSaved(false);
   };
 
 
@@ -237,10 +271,37 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-          <p style={{ color: 'var(--success)', opacity: isSaved ? 1 : 0, transition: 'opacity 0.3s ease', fontWeight: 'bold' }}>
-            ✓ Changes automatically saved
-          </p>
+        <div style={{ marginTop: '2.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+          <button 
+            onClick={handleSaveToCloud} 
+            disabled={isSavingCloud}
+            style={{ 
+              backgroundColor: 'var(--primary-gold)', 
+              color: 'var(--bg-main)', 
+              fontWeight: 'bold', 
+              fontSize: '1.1rem', 
+              padding: '0.8rem 2.2rem', 
+              borderRadius: '6px', 
+              border: 'none',
+              cursor: 'pointer',
+              opacity: isSavingCloud ? 0.7 : 1,
+              transition: 'all 0.2s ease',
+              boxShadow: '0 4px 15px rgba(212, 175, 55, 0.3)'
+            }}
+          >
+            {isSavingCloud ? 'Saving to Cloud...' : 'Save to Cloud & Sync'}
+          </button>
+          
+          {isSaved && (
+            <p style={{ color: 'var(--success)', fontWeight: 'bold', margin: 0 }}>
+              ✓ Settings saved & synced to Google Sheets successfully!
+            </p>
+          )}
+          {cloudError && (
+            <p style={{ color: 'var(--error)', fontWeight: 'bold', margin: 0 }}>
+              ✗ Error: {cloudError}
+            </p>
+          )}
         </div>
       </div>
     </main>
