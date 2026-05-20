@@ -1,6 +1,8 @@
 import { google } from 'googleapis';
 import { NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 function getGoogleAuth() {
   return new google.auth.GoogleAuth({
     credentials: {
@@ -93,7 +95,7 @@ export async function GET(req) {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: masterSpreadsheetId,
-      range: `'${customer}'!A2:L`,
+      range: `'${customer}'!A1:ZZ`,
     });
 
     const rows = response.data.values || [];

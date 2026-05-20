@@ -40,7 +40,7 @@ export default function QuotePage() {
     if (storedSettings) setSettings(JSON.parse(storedSettings));
 
     // Load Customers
-    fetch('/api/sheets')
+    fetch(`/api/sheets?t=${Date.now()}`)
       .then(res => res.json())
       .then(data => {
         if (data.customers) setExistingCustomers(data.customers);
@@ -56,7 +56,7 @@ export default function QuotePage() {
       setIsLoading(true);
       
       // 1. First, try to fetch an existing QUOTE
-      fetch(`/api/quotes?customer=${encodeURIComponent(customerName)}`)
+      fetch(`/api/quotes?customer=${encodeURIComponent(customerName)}&t=${Date.now()}`)
         .then(res => res.json())
         .then(quoteData => {
           if (quoteData.blinds) {
@@ -80,7 +80,7 @@ export default function QuotePage() {
             setIsLoading(false);
           } else {
             // 2. No Quote exists, fetch from Orders master sheet
-            fetch(`/api/sheets?customer=${encodeURIComponent(customerName)}`)
+            fetch(`/api/sheets?customer=${encodeURIComponent(customerName)}&t=${Date.now()}`)
               .then(res => res.json())
               .then(data => {
                 if (data.blinds) {

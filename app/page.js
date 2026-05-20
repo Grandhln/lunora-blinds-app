@@ -49,7 +49,7 @@ export default function Home() {
     }
 
     // Load existing customers from the master spreadsheet
-    fetch('/api/sheets')
+    fetch(`/api/sheets?t=${Date.now()}`)
       .then(res => res.json())
       .then(data => {
         if (data.customers) setExistingCustomers(data.customers);
@@ -61,7 +61,7 @@ export default function Home() {
   useEffect(() => {
     if (existingCustomers.includes(customerName) && loadedCustomer !== customerName) {
       setIsLoadingCustomer(true);
-      fetch(`/api/sheets?customer=${encodeURIComponent(customerName)}`)
+      fetch(`/api/sheets?customer=${encodeURIComponent(customerName)}&t=${Date.now()}`)
         .then(res => res.json())
         .then(data => {
           if (data.blinds) setBlindsList(data.blinds);
